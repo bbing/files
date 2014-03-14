@@ -1,0 +1,109 @@
+/*******************************
+ * @Copyright:邦宜公司
+ * @Author:Mr.Think
+ * @Creation date:2013.06.01
+ * @Description:JS MOD
+ *******************************/ 
+KISSY.add('main/mods/account',function(S,DOM,Event,Node,IO){
+    /*
+    登录
+    */
+    var loginInputs='#J_loginForm .field-big';
+    var loginBtn='#J_loginBtn';
+    var loginCompany='#loginCompany';
+    var loginName='#loginName';
+    var loginPsw='#loginPsw';
+    //域获取焦点
+    Event.on(loginInputs,'focus',function(){
+        var parle=DOM.parent(this,'.lb-row');
+        var errpull=DOM.query('.error-pull');
+        if(DOM.hasClass(parle,'lb-row-e')){
+            DOM.removeClass(parle,'lb-row-e');
+        }
+        if(errpull.length>0){
+            DOM.remove(errpull);
+        }
+    });
+    //域默认值清空
+    Event.on(loginInputs,'keyup',function(){
+        var prev=DOM.prev(this);
+        var v=S.trim(DOM.val(this));
+        v!='' ? DOM.hide(prev) : DOM.show(prev);
+    });
+    //错误提示
+    function ShowError(elem,msg){
+        var html='<div class="error-pull"><p class="txt">'+msg+'</p><em class="arr"></em></div>';
+        var box=DOM.parent(elem,'.lmrm-l');
+        var errpull=DOM.query('.error-pull');
+        errpull.length>0 ? DOM.text(DOM.children(errpull,'.txt'),msg) : Node.all(html).insertAfter(elem);
+        DOM.addClass(box,'lmrm-l-e');
+    }
+    //回车提交
+    Event.on(loginPsw,'keydown',function(ev){
+        if(ev.keyCode==13){
+            Event.fire(J_loginBtn,'click');
+        }
+    });
+    //登录验证
+    Event.on(loginBtn,'click',function(){
+        var self=this;
+        var nv=S.trim(DOM.val(loginName));
+        var pv=S.trim(DOM.val(loginPsw));
+        if(nv==''){
+            ShowError(loginName,_LANG.t1);
+            return false;
+        }else if(!/^[a-zA-Z][a-zA-Z0-9\._]{3,15}$/.test(nv)){
+            ShowError(loginName,_LANG.t2);
+            return false;
+        }else if(pv==''){
+            ShowError(loginPsw,_LANG.t3);
+            return false;
+        }else if(!/^.{5,16}$/.test(pv)){
+            ShowError(loginPsw,_LANG.t4);
+            return false;
+        }else{
+            DOM.prop(self,'disabled',true);
+            DOM.val(self,_LANG.t5);
+            DOM.addClass(self,'s-disabled');
+            IO({
+                url:'/Public/checkLogin',
+                type:'POST',
+                async:false,
+                dataType:'json',
+                data:{name:nv,psw:pv},
+                error:function(){
+                    ShowError(loginBtn,_LANG.t6);
+                    DOM.prop(self,'disabled',false);
+                    DOM.val(self,_LANG.t7);
+                    DOM.removeClass(self,'s-disabled');
+                },
+                success:function(data,status){
+                    if(data.status=='200'){
+                        DOM.val(loginName,nv);
+                        DOM.val(loginPsw,pv);
+                        Event.fire(J_loginForm,'submit');
+                    }else{
+                        ShowError(loginBtn,_LANG.t6);
+                        DOM.prop(self,'disabled',false);
+                        DOM.val(self,_LANG.t7);
+                        DOM.removeClass(self,'s-disabled');
+                    }
+                },
+                complete:function(){
+                    DOM.prop(self,'disabled',false);
+                    DOM.val(self,_LANG.t7);
+                    DOM.removeClass(self,'s-disabled');
+                }
+            });
+        }
+    });
+    //底部语言切换
+    Event.on('#J_IFLang','mouseenter mouseleave',function(){
+        if(DOM.hasClass('#J_IFLangTri','triangle-up')){
+            DOM.removeClass('#J_IFLangTri','triangle-up');
+        }else{
+            DOM.addClass('#J_IFLangTri','triangle-up');
+        }
+        DOM.toggleClass('#J_IFLang .lan-change','lan-change-show');
+    });
+},{requires:['dom','event','node','ajax']});

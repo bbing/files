@@ -1,0 +1,274 @@
+/*******************************
+ * @Copyright:邦宜公司
+ * @Author:Mr.Think
+ * @Creation date:2013.06.04
+ * @Description:Style.Layout
+ *******************************/ 
+KISSY.add('main/mods/formtrack',function(S, DOM,Event,Node,IO,Calendar,O,DragPlugin,Tip){
+    //获取指定标签类型的节点数组
+    function GetTagNames(tagnames,parEl){
+        //父节点未定义默认循document
+        var parEl=parEl || document;
+        //获取指定父元素的子节点
+        var all=parEl.getElementsByTagName('*');
+        //存放所有符合条件的子节点
+        var nodes=[];
+        //将转入的tagname转换成判断正则
+        var reg=eval('/'+tagnames.split(',').join('|')+'/i');
+        //循环，判断，存储
+        for(var ii=0;ii<all.length;ii++){
+            if(reg.test(all[ii].nodeName)){
+                nodes.push(all[ii]);
+            }
+        }
+        //返回
+        return nodes;
+    }
+    //计算前几或后几天
+    var ShowDateFun=function(n,d){
+        var uom=new Date(d - 0 + n * 86400000);
+        uom = uom.getFullYear() + '/' + (uom.getMonth() + 1) + '/' + uom.getDate();
+        return new Date(uom);
+    }
+    var S_Date=S.Date;
+    //初始起始时间
+    var startDate=ShowDateFun(-30, new Date());
+    var endDate=ShowDateFun(0, new Date());
+    var fStartDate=S_Date.format(startDate,'yyyy-mm-dd');
+    var fEndDate=S_Date.format(endDate,'yyyy-mm-dd');
+    var cnfStartDate=S_Date.format(startDate,'yyyy'+_LANG.t1+'mm'+_LANG.t2+'dd'+_LANG.t3);
+    var cnfEndDate=S_Date.format(endDate,'yyyy'+_LANG.t1+'mm'+_LANG.t2+'dd'+_LANG.t3);
+    DOM.val('#formTrackDateStart',fStartDate);
+    DOM.val('#formTrackDateEnd',fEndDate);
+    DOM.val('#formTrackDate',cnfStartDate+' '+_LANG.t4+' '+cnfEndDate);
+    var PID=DOM.attr('.m-detail','data-pid');
+
+    function GetFormTrack(){
+        IO({
+            url:'/Page/formjson/pid/'+PID,
+            dataType:'json',
+            data:{pid:PID,sdate:DOM.val('#formTrackDateStart'),edate:DOM.val('#formTrackDateEnd'),utype:DOM.val('#formName'),otype:DOM.val('#originType')},
+            success:function(data){
+                if(data.status==200){
+                    var html=[];
+                    var val='mrate';
+                    var formIn=~~DOM.val('#originType')-1;//表单索引
+                    if(formIn<0){formIn=0}
+                    var otype=DOM.val('#originType');//类型
+                    var ifrFormEl=document.getElementById('J_FTrackFrame').contentWindow.document.getElementsByTagName('form');
+                    //类型不同显示样式也不同
+                    switch(~~otype){
+                        case 1:
+                        val='mrate';
+                        break;
+
+                        case 2:
+                        val='qrate';
+                        break;
+
+                        case 3:
+                        val='dur';
+                        break;
+
+                        default :
+                        break;
+                    }
+                    //获取所有form
+                    S.each(data.data,function(v,k){
+                        var fields=GetTagNames('input,select,textarea',ifrFormEl[v['fin']]);
+                        var field=fields[v['in']];
+                        var offset=DOM.offset(field);
+                        var x,y,w,h;
+                        //取表单在页面中的x坐标
+                        x=offset.left;
+                        //取表单在页面中的y坐标
+                        y=offset.top;
+                        //取表单在页面中的width
+                        w=DOM.innerWidth(field) || 42;
+                        if(w<60){w=60};//避免宽度过小
+                        //取表单在页面中的height
+                        h=DOM.innerHeight(field) || 20;  
+                        if(h<20){
+                            y=y-(20-h)/2//高度小于20时上坐标需要重新计算
+                            h=20;//避免高度过小
+                        };
+                        html.push('<div id="FT_'+k+'" class="ftrack-'+val+'" style="left:'+x+'px;top:'+y+'px;width:'+w+'px;height:'+h+'px;line-height:'+h+'px" data-mrate="'+v['mrate']+'" data-qrate="'+v['qrate']+'" data-dur="'+v['dur']+'">'+v[val]+'</div>');
+                        //向上滚动
+                        if(k==0){
+                            // DOM.scrollTop('body',y-10);
+                        }
+                    });
+                    //更新到分析结果区
+                    DOM.html('#J_FTrackMap',html.join(''));
+                    //更新页面访问信息
+                    DOM.html('#J_UV',data.uv);
+                    DOM.html('#J_PV',data.pv);
+                    DOM.html('#J_PBR',data.pbr);
+                    DOM.html('#J_FBR',data.fbr);
+                    DOM.html('#J_FDUR',data.duration);
+                    //各结果鼠标划过显示详情
+                    S.each(DOM.query('.ftrack-'+val),function(v,k){
+                        new Tip('#FT_'+k,{
+                            headerText:'',
+                            contentText:'<div class="ftrack-detail"><p class="green">修改率：'+DOM.attr(v,'data-mrate')+'</p><p class="red">退出率：'+DOM.attr(v,'data-qrate')+'</p><p class="orange">平均停留时长：'+DOM.attr(v,'data-dur')+'</p></div>',
+                            mouseHook:false,
+                            delayIn:10,
+                            offsetY:3
+                        });
+                    });
+                }else{
+                    DOM.hide('#J_FTrackMask');
+                    DOM.html('#J_FTrackMap','<div class="mdh-tips"><div class="txt-error">'+data.message+'</div></div>');
+                }
+                DOM.hide('#J_ftLoading');
+            }
+        });
+    }
+    //加载后初始化
+    Event.on('#J_FTrackFrame','load',function(){
+        //初始化
+        GetFormTrack();
+    });
+    //5秒钟仍未加载的，则兼容显示
+    setTimeout(function(){
+        if(DOM.get('#J_ftLoading') != null){
+            //初始化
+            GetFormTrack();
+        }
+    },5000);
+    //初始化
+    // GetFormTrack();
+
+
+    //日期区间选择
+    var formTrackDate=new Calendar('#formTrackDate',{
+            popup:true,
+            triggerType:['click'],
+            closable:false,
+            pages:2,
+            rangeSelect:true,
+            minDate:ShowDateFun(-30, new Date()),
+            maxDate:new Date(),
+            range:{
+                start:startDate,
+                end:endDate
+            }
+        });
+    //选择后执行事件 -- 区间选择
+    formTrackDate.on('rangeSelect', function(e) {
+        //隐藏
+        setTimeout(function(){formTrackDate.hide()},500);
+        DOM.val('#formTrackDate',S_Date.format(e.start,'yyyy'+_LANG.t1+'mm'+_LANG.t2+'dd'+_LANG.t3)+' '+_LANG.t4+' '+S_Date.format(e.end,'yyyy'+_LANG.t1+'mm'+_LANG.t2+'dd'+_LANG.t3))
+        DOM.val('#formTrackDateStart',S_Date.format(e.start,'yyyy-mm-dd'));
+        DOM.val('#formTrackDateEnd',S_Date.format(e.end,'yyyy-mm-dd'));
+        //重新初始化
+        GetFormTrack();
+    });
+    //切换到上一个月
+    setTimeout(function(){Event.fire('.ks-prev-month','click');},100);
+    //
+    //按条件查看
+    Event.on('#J_querySubmit','click',function(){
+        var uv=DOM.val('#formName');
+        var ov=DOM.val('#originType');
+        if(uv==0 && ov==0){
+            DOM.text('.mdhcq-tips',_LANG.t6);
+            DOM.show('.mdhcq-tips');
+        }else{
+            DOM.hide('.mdhcq-tips');
+            //初始执行
+            GetFormTrack();
+        }
+    });
+
+    //展示访客信息
+    Event.on('#J_mfrInfo','mouseover',function(){
+        Node.one('#J_mfrInfo .box').fadeIn(0.1);
+        DOM.addClass('#J_mfrInfo .triangle-down', 'triangle-up');
+    });
+    Event.on('#J_mfrInfo','mouseleave',function(){
+        Node.one('#J_mfrInfo .box').fadeOut(0.1);
+        DOM.removeClass('#J_mfrInfo .triangle-down', 'triangle-up');
+    });
+    //查看其他页面
+    var DetailDialog=new O.Dialog({
+        width:630,
+        headerContent:_LANG.t7,
+        bodyContent:'<img src="/static/img/loading-small.gif" alt="" />_LANG.t8',
+        mask:{
+            duration:.3,effect:'fade',easing:'backout'
+        },
+        align:{
+            points:['cc','cc']
+        },
+        plugins: [
+            new DragPlugin({
+                handlers: ['.ks-stdmod-header']
+            })
+        ]
+    });
+    var showPageType;
+    Event.on('#J_showEtcPage','click',function(){
+        showPageType=DOM.attr(this,'data-type');   
+        DetailDialog.set({
+            bodyContent:'<div class="dg-pagelist" id="J_DPageList">'+
+                '<table class="tab-gray">'+
+                '<col class="r-1"></col>'+
+                '<col class="r-2"></col>'+
+                '<col class="r-3"></col>'+
+                '<thead>'+
+                '<tr>'+
+                '<th>'+_LANG.t9+'</th>'+
+                '<th>'+_LANG.t10+'</th>'+
+                '<th>'+_LANG.t11+'</th>'+
+                '</tr>'+
+                '</thead>'+
+                '<tbody>'+
+                '<tr>'+
+                '<td colspan="3"><img src="/static/img/loading-small.gif" alt="" />'+_LANG.t8+'</td>'+
+                '</tr>'+
+                '</tbody>'+
+                '</table>'+
+                '</div>'
+        }).show();
+    });
+    DetailDialog.on('show',function(){
+        IO({
+            url:'/Page/oformlist',
+            dataType:'json',
+            //data:{type:showPageType,mod:MOD},
+            success:function(data){
+                /*
+                ...标准值...
+                data格式为：[{name:'页面名称',purl:'页面网址',url:'表单分析链接'},{name:'页面名称',purl:'页面网址',url:'表单分析链接'}]
+                另需要返回count:数字，为其他页面总条数
+                */
+                if(data.status==200){
+                    var html=[];
+                    S.each(data.data,function(v,k){
+                        html.push('<tr><td>'+v.name+'</td><td>'+v.purl+'</td><td><a href="'+v.url+'">'+_LANG.t12+'</a></td></tr>');
+                    });
+                    DOM.html('#J_DPageList tbody',html.join(''));
+                    if(data.count>10){
+                        DOM.width('#J_DPageList .tab-gray','100%');
+                        DOM.height('#J_DPageList','452px');
+                        //加滚动条
+                        KISSY.use('gallery/kscroll/1.1/',function(S,Kscroll){
+                            new Kscroll(DOM.get('#J_DPageList'),{
+                                prefix:'clear-',
+                                hotkey: true,
+                                bodydrag: true,
+                                allowArrow:true
+                            });
+                        });
+                    }
+                }else{
+                    DOM.html('#J_DPageList tbody','<td colspan="3">'+data.message+'</td>');
+                }
+            },
+            error:function(){
+                DOM.html('#J_DPageList tbody','<td colspan="3">'+_LANG.t13+'</td>');
+            }
+        });
+    });
+},{requires:['dom','event','node','ajax','calendar','calendar/assets/dpl.css','overlay','component/plugin/drag','gallery/tip/1.0/index']}); 

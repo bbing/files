@@ -1,0 +1,288 @@
+/*******************************
+ * @Copyright:邦宜公司
+ * @Author:Mr.Think
+ * @Creation date:2013.06.04
+ * @Description:Style.Layout
+ *******************************/ 
+KISSY.add('main/mods/heatmap',function(S, DOM,Event,Node,IO,Calendar,Tip,O,DragPlugin,ImgCrop){
+    //计算前几或后几天
+    var ShowDateFun=function(n,d){
+        var uom=new Date(d - 0 + n * 86400000);
+        uom = uom.getFullYear() + '/' + (uom.getMonth() + 1) + '/' + uom.getDate();
+        return new Date(uom);
+    }
+    var S_Date=S.Date;
+    //初始起始时间
+    var startDate=ShowDateFun(-30, new Date());
+    var endDate=ShowDateFun(0, new Date());
+    var fStartDate=S_Date.format(startDate,'yyyy-mm-dd');
+    var fEndDate=S_Date.format(endDate,'yyyy-mm-dd');
+    var cnfStartDate=S_Date.format(startDate,'yyyy'+_LANG.t1+'mm'+_LANG.t2+'dd'+_LANG.t3);
+    var cnfEndDate=S_Date.format(endDate,'yyyy'+_LANG.t1+'mm'+_LANG.t2+'dd'+_LANG.t3);
+    DOM.val('#headMapDateStart',fStartDate);
+    DOM.val('#headMapDateEnd',fEndDate);
+    DOM.val('#headMapDate',cnfStartDate+' '+_LANG.t4+' '+cnfEndDate);
+    var docW=DOM.docWidth();
+    var PID=DOM.attr('.m-detail','data-pid');
+	var MOD=DOM.attr('.m-detail','data-mod');
+    var ImgCrop;
+    //获取页面热图信息函数
+    function GetHeadMapFun(){
+        IO({
+            url:'/Detail/ghp',
+            dataType:'json',
+            data:{pid:PID,mod:MOD,dw:docW,sdate:DOM.val('#headMapDateStart'),edate:DOM.val('#headMapDateEnd'),utype:DOM.val('#userType'),otype:DOM.val('#originType')},
+            success:function(data){
+                if(data.status==200 && data.htmlurl!=''){
+                    var html;
+                    //判断是否已载入heatmap
+                    DOM.prop('#viewAreaData','disabled',false);
+                    if(DOM.query('#J_heatMapImg').length>0){
+                        DOM.attr('#J_heatMapImg','src',data.img);
+                    }else{
+                        html=
+                            '<div class="mdh-mapimg">'+
+                                '<img id="J_heatMapImg" src="'+data.img+'" style="width:'+docW+'px;height:'+data.dh+'px" /></div>'+
+                            '<div class="mdh-iframe">'+
+                                '<iframe id="headMapFrame" name="headMapFrame" frameborder="0" scrolling="no" width="100%" style="width:'+docW+'px;height:'+data.dh+'px" src="'+data.htmlurl+'"></iframe>'+
+                            '</div>';
+                        DOM.hide('#J_heatMask');
+                        DOM.html('#J_heatMap',html);
+                    }
+                    //更新导出热图链接
+                    // DOM.attr('#J_dlHotMap','src',data.hotimg);
+                    //为页面信息赋值
+                    DOM.text('#J_UV',data.uv);
+                    DOM.text('#J_PV',data.pv);
+                    //只有点击热图页面需要为点击量赋值
+                    if(DOM.query('#J_CV').length>0){
+                        DOM.text('#J_CV',data.cv);
+                    }
+                    //区域选择
+                    ImgCrop=new ImgCrop({
+                        areaEl:"#J_canvas",
+                        initialXY:[10,10],
+                        initWidth:500,
+                        initHeight:300,
+                        minHeight:100,
+                        minWidth:100,
+                        areaWidth:docW,
+                        areaHeight:data.dh,
+                        viewWidth:200,
+                        viewHeight:200,
+                        touchable:true,
+                        resizable : true,
+                        maskColor:'#000',
+                        maskOpacity:'.8',
+                        cubesColor:'#fff',
+                        borderColor:'#fff',
+                        url:data.img
+                    });
+                    ImgCrop.render();
+                    //移动时隐藏信息框
+                    ImgCrop.on('imgload drag resize',function(){
+                        DOM.hide('#J_areacount');
+                    });
+                }else if(data.htmlurl==''){
+                    DOM.hide('#J_heatMask');
+                    DOM.html('#J_heatMap','<div class="mdh-tips"><div class="txt-error">'+_LANG.t14+'</div></div>');
+                }else{
+                    DOM.hide('#J_heatMask');
+                    DOM.html('#J_heatMap','<div class="mdh-tips"><div class="txt-error">'+data.message+'</div></div>');
+                }
+                DOM.hide('#J_hmLoading');
+            }
+        });
+    }
+    //初始页面
+    GetHeadMapFun();
+    //查看区域数据
+    Event.on('#viewAreaData','click',function(){
+        var flag=DOM.prop(this,'checked');
+        if(flag){
+           DOM.show('#J_canvas');
+           DOM.hide('.mdh-mapimg');
+        }else{
+           DOM.show('.mdh-mapimg');
+           DOM.hide('#J_canvas');
+           DOM.hide('#J_areacount');
+        }
+    });
+    //获取选择坐标并返回点击数与百分比
+    Event.on('#J_canvas','mouseup',function(){
+        var data=eval('('+ImgCrop.toString(4)+')');
+        //选择矩形四角坐标
+        var sPosX=data.x;
+        var ePosX=data.x+data.w;
+        var sPosY=data.y;
+        var ePosY=data.y+data.h;
+        //请求区域数据
+        IO({
+            url:'/Detail/gcc',
+            dataType:'json',
+            data:{pid:PID,mod:MOD,dw:docW,sdate:fStartDate,edate:fEndDate,utype:DOM.val('#userType'),otype:DOM.val('#originType'),sPosX:sPosX,ePosX:ePosX,sPosY:sPosY,ePosY:ePosY},
+            success:function(data){
+                if(data.status==200){
+                    /*
+                    返回值：
+                    status
+                    message
+                    cv:点击数
+                    pre:百分比 比如80、50、6
+                    */
+                    DOM.text('#J_areacount .cv',data.cv);
+                    DOM.text('#J_areacount .pre',data.pre);
+                    //改变位置并显示
+                    var areaX=0;
+                    if(sPosX > 180){
+                        areaX=sPosX-164;
+                    }else{
+                        areaX=ePosX+10;
+                    }
+                    DOM.css('#J_areacount',{left:(areaX)+'px',top:(sPosY+10)+'px'});
+                    DOM.show('#J_areacount');
+                }
+            }
+        });
+    })
+    //日期区间选择
+    var headMapDate=new Calendar('#headMapDate',{
+            popup:true,
+            triggerType:['click'],
+            closable:false,
+            pages:2,
+            rangeSelect:true,
+            minDate:ShowDateFun(-30, new Date()),
+            maxDate:new Date(),
+            range:{
+                start:startDate,
+                end:endDate
+            }
+        });
+    //选择后执行事件 -- 区间选择
+    headMapDate.on('rangeSelect', function(e) {
+        //隐藏
+        setTimeout(function(){headMapDate.hide()},500);
+        DOM.val('#headMapDate',S_Date.format(e.start,'yyyy'+_LANG.t1+'mm'+_LANG.t2+'dd'+_LANG.t3)+' '+_LANG.t4+' '+S_Date.format(e.end,'yyyy'+_LANG.t1+'mm'+_LANG.t2+'dd'+_LANG.t3))
+        DOM.val('#headMapDateStart',S_Date.format(e.start,'yyyy-mm-dd'));
+        DOM.val('#headMapDateEnd',S_Date.format(e.end,'yyyy-mm-dd'));
+        //初始执行
+        GetHeadMapFun();
+    });
+    //切换到上一个月
+    setTimeout(function(){Event.fire('.ks-prev-month','click');},100);
+    //开启拖动选择提示
+    new Tip('#J_viewAreaTips',{
+        headerText:'',
+        contentText:_LANG.t5,
+        offsetX:6,
+        offsetY:-12,
+        points:['tr','tl','lt'],
+        mouseHook:false,
+        delayIn:100,
+        smarty:false
+    });
+    //按条件查看
+    Event.on('#J_querySubmit','click',function(){
+        var uv=DOM.val('#userType');
+        var ov=DOM.val('#originType');
+        if(uv==0 && ov==0){
+            DOM.text('.mdhcq-tips',_LANG.t6);
+            DOM.show('.mdhcq-tips');
+        }else{
+            DOM.hide('.mdhcq-tips');
+            //初始执行
+            GetHeadMapFun();
+        }
+    });
+    //展示访客信息
+    Event.on('#J_mdhrInfo','mouseover',function(){
+        Node.one('#J_mdhrInfo .box').fadeIn(0.1);
+        DOM.addClass('#J_mdhrInfo .triangle-down', 'triangle-up');
+    });
+    Event.on('#J_mdhrInfo','mouseleave',function(){
+        Node.one('#J_mdhrInfo .box').fadeOut(0.1);
+        DOM.removeClass('#J_mdhrInfo .triangle-down', 'triangle-up');
+    });
+    //查看其他页面
+    var DetailDialog=new O.Dialog({
+        width:630,
+        headerContent:_LANG.t7,
+        bodyContent:'<img src="/static/img/loading-small.gif" alt="" />_LANG.t8',
+        mask:{
+            duration:.3,effect:'fade',easing:'backout'
+        },
+        align:{
+            points:['cc','cc']
+        },
+        plugins: [
+            new DragPlugin({
+                handlers: ['.ks-stdmod-header']
+            })
+        ]
+    });
+    var showPageType;
+    Event.on('#J_showEtcPage','click',function(){
+        showPageType=DOM.attr(this,'data-type');   
+        DetailDialog.set({
+            bodyContent:'<div class="dg-pagelist" id="J_DPageList">'+
+                '<table class="tab-gray">'+
+                '<col class="r-1"></col>'+
+                '<col class="r-2"></col>'+
+                '<col class="r-3"></col>'+
+                '<thead>'+
+                '<tr>'+
+                '<th>'+_LANG.t9+'</th>'+
+                '<th>'+_LANG.t10+'</th>'+
+                '<th>'+_LANG.t11+'</th>'+
+                '</tr>'+
+                '</thead>'+
+                '<tbody>'+
+                '<tr>'+
+                '<td colspan="3"><img src="/static/img/loading-small.gif" alt="" />'+_LANG.t8+'</td>'+
+                '</tr>'+
+                '</tbody>'+
+                '</table>'+
+                '</div>'
+        }).show();
+    });
+    DetailDialog.on('show',function(){
+        IO({
+            url:'/Page/alist',
+            dataType:'json',
+            data:{type:showPageType,mod:MOD},
+            success:function(data){
+                /*
+                ...标准值...
+                data格式为：[{name:'页面名称',purl:'页面网址',url:'热图链接'},{name:'页面名称',purl:'页面网址',url:'热图链接'}]
+                另需要返回count:数字，为其他页面总条数
+                */
+                if(data.status==200){
+                    var html=[];
+                    S.each(data.data,function(v,k){
+                        html.push('<tr><td>'+v.name+'</td><td>'+v.purl+'</td><td><a href="'+v.url+'">'+_LANG.t12+'</a></td></tr>');
+                    });
+                    DOM.html('#J_DPageList tbody',html.join(''));
+                    if(data.count>10){
+                        DOM.width('#J_DPageList .tab-gray','100%');
+                        DOM.height('#J_DPageList','452px');
+                        //加滚动条
+                        KISSY.use('gallery/kscroll/1.1/',function(S,Kscroll){
+                            new Kscroll(DOM.get('#J_DPageList'),{
+                                prefix:'clear-',
+                                hotkey: true,
+                                bodydrag: true,
+                                allowArrow:true
+                            });
+                        });
+                    }
+                }else{
+                    DOM.html('#J_DPageList tbody','<td colspan="3">'+data.message+'</td>');
+                }
+            },
+            error:function(){
+                DOM.html('#J_DPageList tbody','<td colspan="3">'+_LANG.t13+'</td>');
+            }
+        });
+    });
+},{requires:['dom','event','node','ajax','calendar','calendar/assets/dpl.css','gallery/tip/1.0/index','overlay','component/plugin/drag','gallery/imgcrop/2.1/index']}); 

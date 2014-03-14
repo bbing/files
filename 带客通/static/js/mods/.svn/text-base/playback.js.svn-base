@@ -1,0 +1,612 @@
+/*******************************
+ * @Copyright:邦宜公司
+ * @Author:Mr.Think
+ * @Creation date:2013.06.04
+ * @Description:Style.Layout
+ *******************************/ 
+KISSY.add('main/mods/playback',function(S,DOM,Event,Anim,IO){
+    //iframe区域高度计算
+    var winH=DOM.height(window);
+    var headH=DOM.outerHeight('#H');
+    var mdheadH=DOM.outerHeight('.md-head-playback');
+    var footH=DOM.outerHeight('#F');
+    var pbHeight=winH-headH-footH-mdheadH-3 || 400;
+    var vaid=DOM.attr('.md-head-playback','data-vaid');
+    var prevUrl=DOM.attr('#J_playBackMain','data-prev') || '';
+    var nextUrl=DOM.attr('#J_playBackMain','data-next') || '';
+    var isAutoPlay=DOM.prop('#autoPlay','checked');
+    var bodyCurHtml='',bodyCurH=0;
+    var ifrFormEl;
+    //更新回放区高度，以保证最佳浏览，且避免多滚动条影响用户查看
+    DOM.height('.md-playback',pbHeight);
+    //单数补0
+    function ToDouble(n){ 
+       if(typeof n!=='number'){return;}
+       if(n<10){
+           return '0'+n;
+       }else{
+           return n;
+       }
+    }
+    //时间戳格式化
+    function MsToDuration(ms){
+        var sec=0,min=0,hour=0,dur={};
+        if(ms>0){
+            //秒
+            sec=Math.round(ms/1000);
+            //分
+            if(sec >= 60){
+                min=Math.floor(sec/60);
+                sec=sec%60;
+            }
+            //时
+            if(min >= 60){
+                hour=Math.floor(min/60);
+                min=min%60;
+            }
+        }
+        dur.sec=sec;
+        dur.min=min;
+        dur.hour=hour;
+        //返回值
+        return dur;
+    }
+    //获取页面真实路径
+    function GetPathName(url){
+        if(url==''){
+            return '';
+        }else{
+            var arr=url.split('//');
+            //截取第一个/后面的，含/
+            var path=arr[1].substring(arr[1].indexOf('/'));
+            //去除?号后面的
+            if(path.indexOf('?')!==-1){
+                path=path.split('?')[0];
+            }
+            return path;
+        }
+    }
+    //获取指定标签类型的节点数组
+    function GetTagNames(tagnames,parEl){
+        //父节点未定义默认循document
+        var parEl=parEl || document;
+        //获取指定父元素的子节点
+        var all=parEl.getElementsByTagName('*');
+        //存放所有符合条件的子节点
+        var nodes=[];
+        //将转入的tagname转换成判断正则
+        var reg=eval('/'+tagnames.split(',').join('|')+'/i');
+        //循环，判断，存储
+        for(var ii=0;ii<all.length;ii++){
+            if(reg.test(all[ii].nodeName) && all[ii].type!='hidden'){
+                nodes.push(all[ii]);
+            }
+        }
+        //返回
+        return nodes;
+    }
+    //iframe加载完毕初始化播放、进度等
+    function PlayInit(){
+        //隐藏加载提示
+        DOM.remove('#J_ifrLoading');
+        //激活播放按钮
+        DOM.addClass('#J_play','ico-play');
+        DOM.prop('#J_play','disabled',false);
+        DOM.data('#J_play','type','play');
+        //激活进度条
+        DOM.addClass('.mdhcp-progressmain','mdhcp-progressmain-blue');
+        //来源页面
+        var reUrl=GetPathName(document.referrer);
+        //若是来自回放流中的，则自动播放
+        if(DOM.prop('#autoPlay','checked') && reUrl == prevUrl){
+            Event.fire('#J_play','click');
+        }
+        //存入body默认html
+        bodyCurHtml=DOM.html(document.getElementById('playBackFrame').contentWindow.document.body);
+        bodyCurH=DOM.height('#playBackFrame');
+    }
+    //加载后初始化
+    Event.on('#playBackFrame','load',function(){
+        PlayInit();
+    });
+    //5秒钟仍未加载的，则兼容显示
+    setTimeout(function(){
+        if(DOM.get('#J_ifrLoading') != null){
+            PlayInit();
+        }
+    },2000);
+    //连续播放状态传值
+    Event.on('#autoPlay','click',function(){
+        isAutoPlay=DOM.prop(this,'checked');
+        var bid=DOM.val(this);
+        //将设置返回，其他回放流页面自动判断
+        IO.post('/Detail/setautoplay',{isauto:isAutoPlay,id:bid},function(){});
+    });
+    //选择其他流页面
+    Event.on('#pbProcess','change',function(){
+        var url=DOM.val(this);
+        window.location.href=url;
+    });
+    //取键值
+    function GetKeyName(key){
+        var keyname='';
+        switch(key){
+            case 8:
+            keyname='Backspace';
+            break;
+
+            case 9:
+            keyname='Tab';
+            break;
+
+            case 12:
+            keyname='Clear';
+            break;
+
+            case 13:
+            keyname='Enter';
+            break;
+
+            case 16:
+            keyname='Shift';
+            break;
+
+            case 17:
+            keyname='Control';
+            break;
+
+            case 18:
+            keyname='Alt';
+            break;
+
+            case 20:
+            keyname='Cap Lock';
+            break;
+
+            case 27:
+            keyname='Esc';
+            break;
+
+            case 32:
+            keyname='Spacebar';
+            break;
+
+            case 33:
+            keyname='Page Up';
+            break;
+
+            case 34:
+            keyname='Page Down';
+            break;
+
+            case 35:
+            keyname='End';
+            break;
+
+            case 36:
+            keyname='Home';
+            break;
+
+            case 37:
+            keyname='Left Arrow';
+            break;
+
+            case 38:
+            keyname='Up Arrow';
+            break;
+
+            case 39:
+            keyname='Down Arrow';
+            break;
+
+            case 45:
+            keyname='Insert';
+            break;
+            
+            case 46:
+            keyname='Delete';
+            break;
+
+            case 48:
+            case 49:
+            case 50:
+            case 51:
+            case 52:
+            case 53:
+            case 54:
+            case 55:
+            case 56:
+            case 57:
+
+            keyname='N / X';
+            break;
+
+            case 65:
+            case 66:
+            case 67:
+            case 68:
+            case 70:
+            case 71:
+            case 72:
+            case 73:
+            case 74:
+            case 75:
+            case 76:
+            case 77:
+            case 78:
+            case 79:
+            case 81:
+            case 82:
+            case 83:
+            case 84:
+            case 85:
+            case 86:
+            case 87:
+            case 88:
+            case 89:
+            case 90:
+            case 95:
+            case 192:
+            keyname='X';
+            break;
+
+            case 96:
+            case 97:
+            case 98:
+            case 99:
+            case 100:
+            case 101:
+            case 102:
+            case 103:
+            case 104:
+            case 105:
+            keyname='X';
+            break;
+
+            case 112:
+            keyname='F1';
+            break;
+
+            case 113:
+            keyname='F2';
+            break;
+
+            case 114:
+            keyname='F3';
+            break;
+
+            case 115:
+            keyname='F4';
+            break;
+
+            case 116:
+            keyname='F5';
+            break;
+
+            case 117:
+            keyname='F6';
+            break;
+
+            case 118:
+            keyname='F7';
+            break;
+
+            case 119:
+            keyname='F8';
+            break;
+
+            case 120:
+            keyname='F9';
+            break;
+
+            case 121:
+            keyname='F10';
+            break;
+
+            case 122:
+            keyname='F11';
+            break;
+
+            case 123:
+            keyname='F12';
+            break;
+
+            case 144:
+            keyname='Num Lock';
+            break;
+
+            default:
+            keyname=''
+        }
+        return keyname;
+    }
+    //播放
+    IO({
+        url:'/Detail/playjson/vaid/'+vaid,
+        // url:'/test/playback/json-pos.json',
+        dataType:'json',
+        success:function(data){
+            if(data.status==200){
+                //返回的坐标数据与时长
+                var posData=data.data;
+                var formData=data.form;
+                var duration=data.duration;
+                var Action={ 
+                    cursor:'#J_mdpCursor',// 鼠标
+                    main:'#J_playBackMain', //回放区
+                    playId:'#J_play',//播放 | 暂停按钮
+                    replayId:'#J_rePlay', //重播
+                    dur:0, //当前时长
+                    plan:'.mdhcp-progress',//播放进度
+                    time:'#J_PBTime',//时间进度
+                    ptips:'#J_mdhTips',//跳过提示
+                    keytips:'#J_mdhKeyTips',//跳过提示
+                    x:0, //坐标x
+                    y:0, //坐标y
+                    key:'',//键盘键值
+                    nkey:'',//下一个键盘键值
+                    // s:'', //鼠标状态
+                    t:60, //间隔时长
+                    k:1, //键值
+                    w:DOM.width(window), //视察宽度
+                    h:pbHeight, //回放区高度
+                    auto:null, //自动播放函数
+                    showClick:'#showClick', //是否留存点击
+                    showMove:'#showMove', //是否留存点击
+                    autoPlay:'#autoPlay',
+                    // autoShowKey:null,//显示键值
+                    // fk:'', //表单监测 - 表单索引
+                    // fnk:'', //表单监测 - 表单节点索引
+                    // fv:'', //表单监测 - 表单节点值
+                    play:function(){ 
+                        //当已播放过1次后，再播放初始化
+                        if(DOM.data(Action.playId,'status')=='done'){
+                            //重置页面
+                            Action.update(bodyCurH,bodyCurHtml);
+                            //重播
+                            Action.init();
+                        }
+                        //播放时按钮变成暂停状态
+                        DOM.addClass(Action.playId,'ico-pause');
+                        //播放时类型暂停状态（判断用）
+                        DOM.data(Action.playId,'type','pause');
+                        //status是播放是否完成，即再次播放时是否需要初始化
+                        DOM.data(Action.playId,'status','undone');
+                        //播放过程中不能改变是否留存点击
+                        DOM.prop(Action.showClick,'disabled',true);
+                        //播放过程中不能改变是否留存回放
+                        DOM.prop(Action.showMove,'disabled',true);
+                        //播放过程中隐藏重播
+                        DOM.hide(Action.replayId);
+                        var cursor=Action.cursor;
+                        var k=Action.k;
+                        var pos=DOM.attr(Action.main,'data-pos') || 'center';
+                        //基于页面位置返回x坐标
+                        var posX=posData[k-1].x;
+                        if(posX!=undefined){
+                            //居中页面
+                            if(pos=='center'){
+                                //计算坐标，返回数据中的x是基于中线的，所以要根据当前视窗宽度还原
+                                Action.x=(Action.w/2 - posData[k-1].x);
+                            }
+                            //居左页面
+                            if(pos=='left'){
+                                Action.x=posData[k-1].x;
+                            }
+                            //居右页面
+                            if(pos=='right'){
+                                Action.x=Action.w-posData[k-1].x;
+                            }
+                            //页面y坐标
+                            Action.y=posData[k-1].y;
+                        }
+                        Action.key=posData[k-1].k || '';
+                        //键值提示
+                        if(Action.key!=''){
+                            var kv=GetKeyName(~~Action.key);
+                            if(kv!=''){
+                                //显示提示
+                                DOM.text(Action.keytips,kv);
+                                DOM.show(Action.keytips);
+                            }
+                        }
+                        //两坐标间时差，最后一个点时初始成60
+                        Action.t= k==posData.length ? 60 : posData[k].t-posData[k-1].t;
+                        //当访客超过5秒未操作页面时，快速跳过
+                        if(Action.t>5000){
+                            var ptime=MsToDuration(Action.t);
+                            ptime= (ptime.hour>0 ? ptime.hour +_LANG.t1 : '') + (ptime.min>0 ? ptime.min +_LANG.t2 : '') + (ptime.sec>0 ? ptime.sec +_LANG.t3 : '');
+                            //更新提示中的时长
+                            DOM.text(DOM.children(Action.ptips,'em'),ptime);
+                            //显示提示
+                            Anim(Action.ptips,{opacity:1},0.1).run();
+                            //3秒后隐藏提示
+                            setTimeout(function(){
+                                Anim(Action.ptips,{opacity:0},0.1).run();
+                            },3000);
+                            //将时长重置为1 
+                            Action.t=1000;
+                        }
+                        //当前播放时长 
+                        Action.dur=posData[k-1].t-posData[0].t;
+                        //若存在下一页，且允许自动播放，则自动连续播放
+                        if(Action.dur==duration && nextUrl!='' && DOM.prop(Action.autoPlay,'checked')){
+                            window.location.href=nextUrl;
+                        }
+                        //当前点的鼠标状态 空值为移动，click为点击
+                        Action.s=posData[k-1].s || '';
+                        if(posData[k-1].fk!=undefined){
+                            Action.s='form';
+                        }
+                        //更新播放时长，需要用MsToDuration格式化
+                        var plantime=MsToDuration(Action.dur);
+                        DOM.text(Action.time,ToDouble(plantime.hour)+':'+ToDouble(plantime.min)+':'+ToDouble(plantime.sec));
+                        //更新播放进度条
+                        DOM.width(Action.plan,(Action.dur*100/duration)+'%');
+                        //更新鼠标位置
+                        DOM.css(cursor,{left:(Action.x-8)+'px',top:(Action.y-8)+'px'});
+                        //更新滚动条位置 16是鼠标按钮本身的高度，20是为了稍向上偏移一点，更适合查看
+                        if(Action.y > (Action.h-66)){
+                            DOM.scrollTop(Action.main,(Action.y - Action.h + 76));
+                        }else{
+                            DOM.scrollTop(Action.main,0);
+                        }
+                        //是否在页面中留存轨迹
+                        if(DOM.prop(Action.showMove,'checked')){
+                            setTimeout(function(){
+                                DOM.append(DOM.create('<div class="mdp-cursor mdp-cursor-move" style="left:'+Action.x+'px;top:'+Action.y+'px;"></div>'),Action.main);
+                            },10);
+                        }
+                        //当前为点击时 
+                        if(Action.s=='click'){
+                            //改变一下鼠标样式
+                            DOM.addClass(cursor,'mdp-cursor-click');
+                            //是否在页面中留存这个点击
+                            if(DOM.prop(Action.showClick,'checked')){
+                                setTimeout(function(){
+                                    DOM.append(DOM.create('<div class="mdp-cursor mdp-cursor-show" data-time="'+posData[k-1].t+'" style="left:'+(Action.x-8)+'px;top:'+(Action.y-8)+'px;"></div>'),Action.main);
+                                },10);
+                            }
+                            //若是跟踪事件则更新dom
+                            if(posData[k-1].h!=undefined){
+                                //更新动态载入
+                                Action.update(posData[k-1].h,posData[k-1].d);
+                            }
+                        }else if(Action.s=='event'){
+                            DOM.removeClass(cursor,'mdp-cursor-click');
+                            //更新动态载入
+                            Action.update(posData[k-1].h,posData[k-1].d);
+                        }else if(Action.s=='form'){
+                            //表单监测
+                            Action.fk=posData[k-1].fk;
+                            Action.fnk=posData[k-1].nk;
+                            Action.fv=posData[k-1].v;
+                            Action.fUpdate();
+                        }else{
+                            DOM.removeClass(cursor,'mdp-cursor-click');
+                        }
+                        //当键值在可循范围内时，每隔Action.t执行一次，此处不能用setInterval,否则Action.t的值是一样的
+                        if(Action.k < posData.length){
+                            Action.auto=setTimeout(Action.play,Action.t);
+                        }else{
+                            //播放完毕后 还原按钮 还原播放状态 显示重播 更新播放状态为已完成 可重新选择是否留存点击 
+                            DOM.removeClass(Action.playId,'ico-pause');
+                            DOM.data(Action.playId,'type','play');
+                            DOM.show(Action.replayId);
+                            DOM.data(Action.playId,'status','done');
+                            DOM.prop(Action.showClick,'disabled',false);
+                            DOM.prop(Action.showMove,'disabled',false);
+                            //隐藏键盘提示
+                            setTimeout(function(){
+                                DOM.hide(Action.keytips);
+                            },500);
+                        }
+                        //键值累加，进入下一个坐标
+                        Action.k++;
+                    },
+                    pause:function(){
+                        //按钮状态变更播放、类型变更播放、清除自动执行
+                        DOM.removeClass(Action.playId,'ico-pause');
+                        DOM.data(Action.playId,'type','play');
+                        clearTimeout(Action.auto);
+                        // clearTimeout(Action.autoShowKey);
+                    },
+                    update:function(height,html){
+                        //更新遮罩层高度
+                        DOM.height('.mdp-mask',height+'px');
+                        //更新iframe高度
+                        DOM.height('#playBackFrame',height+'px');
+                        //更新iframe中body结构
+                        DOM.html(document.getElementById('playBackFrame').contentWindow.document.body,html);
+                    },
+                    fUpdate:function(){
+                        //获取iframe中的form
+                        var ifrFormEl=document.getElementById('playBackFrame').contentWindow.document.getElementsByTagName('form');
+                        //赋值
+                        var thisNodes=GetTagNames('input,select,textarea',ifrFormEl[Action.fk]);
+                        var thisNode=thisNodes[Action.fnk];
+                        var nodename='';
+                        if(thisNode!=undefined){
+                            nodename=thisNode.nodeName.toLowerCase();
+                        }
+                        if(nodename=='input'){
+                            var type=thisNode.type || '';
+                            //兼容html表单属性
+                            if(/text|password|email|url|date|time|month|week|number|search/.test(type)){
+                                type='text';
+                            }
+                            if(/radio|checkbox/.test(type)){
+                                type='choice';
+                            }
+                            //文本域
+                            switch(type){
+                                case 'text':
+                                    Event.fire(thisNode,'focus');
+                                    DOM.val(thisNode,Action.fv);
+                                    break;
+
+                                case 'choice':
+                                    DOM.prop(thisNode,'checked',Action.fv=='true');
+                                    break;
+
+                                default:
+                                break
+                            }
+                        }else if(nodename=='select'){
+                            // Event.fire(thisNode,'focus');
+                            //下拉列表
+                            var option=DOM.children(thisNode,'option');
+                            DOM.prop(option[Action.fv],'selected',true);
+                        }else if(nodename=='textarea'){
+                            Event.fire(thisNode,'focus');
+                            //文本域
+                            DOM.val(thisNode,Action.fv);
+                        }
+                        
+                    },
+                    init:function(){
+                        //初始化
+                        Action.k=1;
+                        DOM.css(Action.cursor,{left:0,top:0});
+                        DOM.scrollTop(Action.main,0);
+                        Action.clear();
+                    },
+                    replay:function(){
+                        //重置页面
+                        Action.update(bodyCurH,bodyCurHtml);
+                        //重播
+                        Action.init();
+                        Action.play();
+                    },
+                    clear:function(){
+                        //清除所有留存的点击
+                        if(DOM.query('.mdp-cursor-show').length>0){
+                            DOM.hide('.mdp-cursor-show');
+                        }
+                        //清除所有留存的轨迹
+                        if(DOM.query('.mdp-cursor-move').length>0){
+                            DOM.hide('.mdp-cursor-move');
+                        }
+                    }
+                }
+                //播放
+                Event.on('#J_play','click',function(){
+                    var type=DOM.data(this,'type');
+                    //当是播放状态
+                    if(type=='play'){
+                        Action.play();
+                    }
+                    //当是暂停状态
+                    if(type=='pause'){
+                        Action.pause();
+                    }
+                });
+                //重播
+                Event.on('#J_rePlay','click',function(){
+                    Action.replay();
+                });
+            }
+        }
+    });
+
+},{requires:['dom','event','anim','ajax']}); 

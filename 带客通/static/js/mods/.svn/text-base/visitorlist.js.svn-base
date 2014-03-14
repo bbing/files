@@ -1,0 +1,96 @@
+/*******************************
+ * @Copyright:邦宜公司
+ * @Author:Mr.Think
+ * @Creation date:2013.06.04
+ * @Description:BI JS
+ *******************************/ 
+KISSY.add('main/mods/visitorlist',function(S,DOM,Event,IO,O,DragPlugin){
+    /*
+    访客列表
+    */
+    //共用dialog
+    var pageBaseDialog=new O.Dialog({
+        width:500,
+        headerContent:_LANG.t1,
+        bodyContent:'<img src="/public/img/loading-small.gif" alt=""/>',
+        footerContent:'',
+        mask:{
+            duration:.3,effect:'fade',easing:'backout'
+        },
+        align:{
+            points:['cc','cc']
+        },
+        plugins: [
+            new DragPlugin({
+                handlers: ['.ks-stdmod-header']
+            })
+        ]
+    });
+    //条件查询
+    Event.on('#J_querySubmit','click',function(){		
+        var uv=DOM.val('#userType');
+        var sv=DOM.val('#sortType');
+        var ov=DOM.val('#originType');
+        if(uv==0 && sv==0 && ov==0){
+            DOM.text('.mdhcq-tips',_LANG.t2);
+            DOM.show('.mdhcq-tips');
+        }else{
+            DOM.hide('.mdhcq-tips');
+            IO.post('/Detail/vsurl',{utype:uv,stype:sv,otype:ov},function(data){
+                //data.url为根据查询条件生成的url
+                if(data.status==200){
+                    window.location.href=data.url;
+                }else{
+                    DOM.text('.mdhcq-tips',_LANG.t3);
+                    DOM.show('.mdhcq-tips');
+                }
+            },'json');
+        }
+    });
+    //保存条件
+    Event.on('#J_saveQuery','click',function(){		
+        var uv=DOM.val('#userType');
+        var sv=DOM.val('#sortType');
+        var ov=DOM.val('#originType');
+        if(uv==0 && sv==0 && ov==0){
+            DOM.text('.mdhcq-tips',_LANG.t2);
+            DOM.show('.mdhcq-tips');
+        }else{
+            DOM.hide('.mdhcq-tips');
+            IO.post('/Detail/vsurl/save/1',{utype:uv,stype:sv,otype:ov},function(data){
+                //data.url为根据查询条件生成的url
+                if(data.status==200){
+                    window.location.href=data.url;
+                }else{
+                    DOM.text('.mdhcq-tips',_LANG.t3);
+                    DOM.show('.mdhcq-tips');
+                }
+            },'json');
+        }
+    });
+    //每页显示
+    Event.on('#showVisitors','change',function(){
+        var url=DOM.val(this);
+        window.location.href=url;
+    });
+    var visitorTr;
+    //删除访客
+    Event.on('.J_deleVisitor','click',function(ev){
+        visitorTr=DOM.parent(this,'tr');
+        pageBaseDialog.set({width:260,headerContent:_LANG.t4,bodyContent:'<p class="txt-warn">'+_LANG.t5+'</p>',
+        footerContent:'<a href="javascript:;" class="link-small-blue" id="J_submitDeleVisitor" style="margin-left:160px"><span>'+_LANG.t6+'</span></a>'}).show();
+    });
+    //弹出事件监听
+    pageBaseDialog.on('show',function(){
+        //访客删除
+        Event.on('#J_submitDeleVisitor','click',function(){
+            //删除，是否需要回传sid?
+            IO.post('/Detail/delvisit',{vid:DOM.attr(visitorTr,'data-vid')},function(data){
+                if(data.status==200){
+                    DOM.remove(visitorTr);
+                    pageBaseDialog.hide();
+                }
+            },'json');
+        });
+    });
+},{requires:['dom','event','ajax','overlay','component/plugin/drag','gallery/auth/1.4/index']}); 

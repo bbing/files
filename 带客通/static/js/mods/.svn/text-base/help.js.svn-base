@@ -1,0 +1,11 @@
+/*******************************
+ * @Copyright:邦宜公司
+ * @Author:Mr.Think
+ * @Creation date:2013.09.05
+ * @Description:JS MOD
+ *******************************/ 
+KISSY.add('main/mods/help',function(S,PageSidebar,RichBase){
+    
+    
+    
+},{requires:['gallery/pagesidebar/1.0/index','rich-base']});

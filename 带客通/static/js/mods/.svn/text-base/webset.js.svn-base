@@ -1,0 +1,168 @@
+/*******************************
+ * @Copyright:邦宜公司
+ * @Author:Mr.Think
+ * @Creation date:2013.06.04
+ * @Description:BI JS
+ *******************************/
+KISSY.add('main/mods/webset',function(S,DOM,Event,IO,O,DragPlugin,Calendar,Auth,ZeroClipboard){
+    var SETReg={
+        dm:/[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+\.?/,
+        it:/^([1-9][0-9]?|100)$/,
+        ip:/\d+\.\d+\.\d+\.\d+/
+    }
+    /*
+    设置
+    */
+    //日历选择
+    var calendar = new Calendar({
+        minDate: new Date,
+        triggerNode: '#setDate',
+        count:'1'
+    });
+    calendar.on('show', function(e){
+        if(e.node.attr('id')=='setDate'){
+            this.set('minDate', new Date);
+            this.set('afterDays',30);
+            this.render();
+        }
+    });
+    //表单验证
+    //添加表单验证
+    var biSetForm=new Auth('#J_biSetForm',{
+        autoBind:true,
+        stopOnError:false,
+        msg:{
+            tpl:'<div class="bis-error {style}">{msg}</div>'
+        }
+    });
+    //注册各域验证事件
+    biSetForm.register('setName',function(v){
+        v=S.trim(v);
+        var len=v.length;
+        return (len>1 && len<31);
+    });
+    biSetForm.register('setDomain',function(v){
+        v=S.trim(v);
+        return SETReg.dm.test(v);
+    });
+    biSetForm.register('setScale',function(v){
+        v=S.trim(v);
+        return SETReg.it.test(v) || v=='';
+    });
+    biSetForm.register('setMaskIp',function(v){
+        var arr=S.trim(v).split(',');
+        var flag=false;
+        S.each(arr,function(val,key){
+            if(SETReg.ip.test(val)){flag=true}
+        });
+        return flag || v=='';
+    });
+    //提示信息
+    biSetForm.add('#setName',{
+        rules:{
+            setName:{
+                success:'',
+                error:_LANG.t1
+            }
+        }
+    });
+    biSetForm.add('#setDomain',{
+        rules:{
+            setDomain:{
+                success:'',
+                error:_LANG.t2
+            }
+        }
+    });
+    biSetForm.add('#setScale',{
+        rules:{
+            setScale:{
+                success:'',
+                error:_LANG.t3
+            }
+        }
+    });
+    biSetForm.add('#setMaskIp',{
+        rules:{
+            setMaskIp:{
+                success:'',
+                error:_LANG.t4
+            }
+        }
+    });
+    Event.on('#J_biSetForm','submit',function(){
+        biSetForm.validate();
+        return biSetForm.get('result');
+    });
+    //设置页共用dialog
+    var setBaseDialog=new O.Dialog({
+        width:300,
+        headerContent:_LANG.t5,
+        bodyContent:'',
+        footerContent:'',
+        mask:{
+            duration:.3,effect:'fade',easing:'backout'
+        },
+        align:{
+            points:['cc','cc']
+        },
+        plugins: [
+            new DragPlugin({
+                handlers: ['.ks-stdmod-header']
+            })
+        ]
+    });
+    //暂停统计
+    Event.on('#J_pauseStat','click',function(){
+        setBaseDialog.set({headerContent:_LANG.t6,bodyContent:'<p class="txt-warn">'+_LANG.t7+'</p>',
+        footerContent:'<a href="javascript:;" class="link-small-blue" id="J_submitPause" style="margin-left:200px"><span>'+_LANG.t8+'</span></a>'}).show();
+    });
+    //启动统计
+    Event.on('#J_playStat','click',function(){
+        setBaseDialog.set({headerContent:_LANG.t9,bodyContent:'<p class="txt-warn">'+_LANG.t10+'</p>',
+        footerContent:'<a href="javascript:;" class="link-small-blue" id="J_submitPlay" style="margin-left:200px"><span>'+_LANG.t11+'</span></a>'}).show();
+    });
+    //弹出事件监听
+    setBaseDialog.on('show',function(){
+        Event.on('#J_submitPause','click',function(){
+            //暂停，是否需要回传sid?
+            IO.post('/Site/pause',function(){
+                window.location.reload();
+            });
+        });
+        Event.on('#J_submitPlay','click',function(){
+            //启动，是否需要回传sid?
+            IO.post('/Site/play',function(){
+                window.location.reload();
+            });
+        });
+    });
+    //查看示例
+    Event.on('#J_showSample','click',function(){
+        var url=DOM.attr(this,'data-url');
+        setBaseDialog.set({width:'630px',headerContent:_LANG.t12,bodyContent:'<img src="'+url+'" alt="" width="600" height="406"  />'}).show();
+    });
+    //复制代码
+    var copyDetailBtn=DOM.get('#J_copyCode');
+    var copyCodeTips='.bistb-tips';
+    function ClipCodeDetail() {
+        var codeClip = new ZeroClipboard.Client();//创建对象
+        codeClip.setHandCursor(true);//鼠标手型
+        codeClip.glue('J_copyCode');
+        codeClip.reposition();
+        codeClip.setText(DOM.val('#J_codeDetail'));
+        codeClip.addEventListener('onComplete', CompleteFun);
+        //复制成功后执行
+        function CompleteFun() {
+            DOM.text(copyCodeTips,_LANG.t13);
+            DOM.show(copyCodeTips);
+            setTimeout(function () {
+                DOM.hide(copyCodeTips);
+            }, 3000);
+        }
+    }
+    if (copyDetailBtn != null) {
+        ClipCodeDetail();
+    }
+},{requires:['dom','event','ajax','overlay','component/plugin/drag','gallery/calendar/1.1/index','gallery/auth/1.4/index','main/widget/zeroclipboard']}); 
+

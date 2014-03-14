@@ -1,0 +1,193 @@
+/*******************************
+ * @Copyright:邦宜公司
+ * @Author:Mr.Think
+ * @Creation date:2013.06.04
+ * @Description:BI JS
+ *******************************/ 
+KISSY.add('main/mods/pagelist',function(S,DOM,Event,IO,O,DragPlugin,Auth){
+    var PAGEReg={
+        url:/^(http(s)?:\/\/)?[A-Za-z0-9]+\.[A-Za-z0-9]+[\/=\?%\v-&_~`@[\]\':+!]*([^<>\"\"])*$/
+    }
+    /*
+    设置
+    */
+    //共用dialog
+    var pageBaseDialog=new O.Dialog({
+        width:500,
+        headerContent:_LANG.t1,
+        bodyContent:'<img src="/public/img/loading-small.gif" alt=""/>',
+        footerContent:'',
+        mask:{
+            duration:.3,effect:'fade',easing:'backout'
+        },
+        align:{
+            points:['cc','cc']
+        },
+        plugins: [
+            new DragPlugin({
+                handlers: ['.ks-stdmod-header']
+            })
+        ]
+    });
+    //添加页面
+    var addPageUrl='#J_addPageUrl';
+    Event.on(addPageUrl,'click',function(){
+        IO({
+            url:'/Page/addpage',
+            dataType:'html',
+            success:function(data){
+                pageBaseDialog.set({
+                    headerContent:_LANG.t2,
+                    bodyContent:data,
+                    footerContent:'<div class="dg-addpage-foot"><em class="dg-addpage-tips"></em><input type="button" id="J_dgAddPageSubmit" class="biss-btn" value="'+_LANG.t3+'"/></div>'
+                }).show();
+            },
+            error:function(){
+                pageBaseDialog.set({bodyContent:'<div class="txt-error">'+_LANG.t4+'</div>'}).show();
+            }
+        });
+    });
+    //暂停页面统计
+    var pausePStat=DOM.query('.J_pausePage');
+    var startPStat=DOM.query('.J_startPage');
+    var delePStat=DOM.query('.J_delePage');
+    var setPID='';
+    //暂停统计
+    Event.on(pausePStat,'click',function(ev){
+        var tr=DOM.parent(this,'tr');
+        setPID=DOM.attr(tr,'data-pid');
+        pageBaseDialog.set({width:260,headerContent:_LANG.t5,bodyContent:'<p class="txt-warn">'+_LANG.t6+'</p>',
+        footerContent:'<a href="javascript:;" class="link-small-blue" id="J_submitPausePage" style="margin-left:160px"><span>'+_LANG.t7+'</span></a>'}).show();
+    });
+    //启动统计
+    Event.on(startPStat,'click',function(ev){
+        var tr=DOM.parent(this,'tr');
+        setPID=DOM.attr(tr,'data-pid');
+        IO.post('/Page/play',{pid:setPID},function(){
+            window.location.reload();
+        });
+    });
+    //删除页面
+    Event.on(delePStat,'click',function(ev){
+        var tr=DOM.parent(this,'tr');
+        setPID=DOM.attr(tr,'data-pid');
+        pageBaseDialog.set({width:260,headerContent:_LANG.t8,bodyContent:'<p class="txt-warn">'+_LANG.t9+'</p>',
+        footerContent:'<a href="javascript:;" class="link-small-blue" id="J_submitDelePage" style="margin-left:160px"><span>'+_LANG.t10+'</span></a>'}).show();
+    });
+    //获取主域名
+    function GetDomain(url){
+        var domain = null;
+        if(typeof url== undefined || null == url){
+            url = window.location.href;
+        }
+        var reg = /.*\:\/\/([^\/]*).*/;
+        var match = url.match(reg);
+        if(typeof match != 'undefined' && null != match){
+            domain = match[1];
+        }
+        return domain;
+    }
+    //获取路径
+    function GetPath(url){
+        var re = /(\w+):\/\/([^\:|\/]+)(\:\d*)?(.*\/)([^#|\?|\n]+)?(#.*)?(\?.*)?/i;
+        var arr=url.match(re);
+        if(arr==null){
+            return '/';
+        }else{
+            var path=[];
+            for(var i in arr){
+                if(i>2 && arr[i]!=undefined){
+                    path.push(arr[i]);
+                }
+            }
+            return path.join('');
+        }
+    }
+    //弹出事件监听
+    pageBaseDialog.on('show',function(){
+        //暂停
+        var psubmit='#J_submitPausePage';
+        var dsubmit='#J_submitDelePage';
+        Event.on(psubmit,'click',function(){
+            //暂停，是否需要回传sid?
+            IO.post('/Page/pause',{pid:setPID},function(){
+                window.location.reload();
+            });
+        });
+        //删除
+        Event.on(dsubmit,'click',function(){
+            //删除，是否需要回传sid?
+            IO.post('/Page/del',{pid:setPID},function(){
+                window.location.reload();
+            });
+        });
+        //页面添加
+        var dgAddSubmit='#J_dgAddPageSubmit';
+        var dgAddTips='.dg-addpage-tips';
+        Event.fire('#addPageName','focus');
+        Event.on(dgAddSubmit,'click',function(){
+            var radios=DOM.query('#J_dgBisRadio input');
+            var apnv=S.trim(DOM.val('#addPageName'));
+            var apuv=S.trim(DOM.val('#addPageUrl'));
+            var apdm,appath;
+            //获取主域名
+            apdm=GetDomain(apuv);
+            appath=GetPath(apuv);
+            var appv='center',flag=[];
+            //位置取值
+            S.each(radios,function(ev,key){
+                if(DOM.prop(ev,'checked')){
+                    appv=DOM.val(ev);
+                }
+            });
+            //判断
+            if(apnv.length>30 || apnv.length<2){
+                DOM.text(dgAddTips,_LANG.t11);
+                DOM.addClass('#addPageName', 'field-error');
+                flag.push(0);
+            }else{
+                DOM.text(dgAddTips,'');
+                DOM.removeClass('#addPageName', 'field-error');
+                flag.push(1);
+            }
+            if(!PAGEReg.url.test(apuv)){
+                DOM.text(dgAddTips,_LANG.t12);
+                DOM.addClass('#addPageUrl', 'field-error');
+                flag.push(0);
+            }else{
+                DOM.text(dgAddTips,'');
+                DOM.removeClass('#addPageUrl', 'field-error');
+                flag.push(1);
+            }
+            if(!S.inArray(0,flag)){
+                IO({
+                    url:'/Page/add',
+                    type:'POST',
+                    data:{name:apnv,domain:apdm,path:appath,pos:appv},
+                    dataType:'json',
+                    send:function(){},
+                    success:function(data){
+                        /*
+                        返回状态：status
+                        200：成功
+                        301：页面已存在
+                        302：页面网址中域名不是统计域
+                        401：已退出登录
+                        */
+                        if(data.status==200){
+                            window.location.reload();
+                        }else if(data.status==301){
+                            DOM.text(dgAddTips,_LANG.t13);
+                        }else if(data.status==401){
+                            DOM.text(dgAddTips,_LANG.t14);
+                        }else if(data.status==302){
+                            DOM.text(dgAddTips,_LANG.t15);
+                        }else{
+                            DOM.text(dgAddTips,_LANG.t16);
+                        }
+                    }
+                });
+            }
+        });
+    });
+},{requires:['dom','event','ajax','overlay','component/plugin/drag','gallery/auth/1.4/index']}); 

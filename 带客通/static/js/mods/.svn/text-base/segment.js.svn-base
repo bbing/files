@@ -1,0 +1,319 @@
+    /*******************************
+ * @Copyright:邦宜公司
+ * @Author:Mr.Think
+ * @Creation date:2013.09.05
+ * @Description:JS MOD
+ *******************************/ 
+KISSY.add('main/mods/segment',function(S,DOM,Event,IO,O,DragPlugin,Auth){
+    //共用dialog
+    var pageBaseDialog=new O.Dialog({
+        width:500,
+        headerContent:'Segment',
+        bodyContent:'<img src="/public/img/loading-small.gif" alt=""/>',
+        footerContent:'',
+        mask:{
+            duration:.3,effect:'fade',easing:'backout'
+        },
+        align:{
+            points:['cc','cc']
+        },
+        plugins: [
+            new DragPlugin({
+                handlers: ['.ks-stdmod-header']
+            })
+        ]
+    });
+    //SEGMENT弹出
+    Event.on('#J_segmentNav','mouseenter mouseleave',function(){
+        DOM.toggleClass('#J_segmentNav .hns-box','hns-box-show');
+    });
+
+    var segId,segDD;
+    segId = DOM.attr('.dg-segment','data-sid');
+    //新增或修改segment
+    Event.on('#J_addSegment,.hns-item .edit','click',function(e){
+        //若id为空，则请求的是新增，否则请求修改
+        segDD=DOM.parent(this,'dd');
+        segId=DOM.attr(segDD,'data-id') || '';
+        
+        IO.get('/Segment/index/sid/'+segId,function(data){
+        // IO.get('/public/ajax/segment.html',function(data){
+            pageBaseDialog.set({width:500,headerContent:segId=='' ? _BASELANG.t1 : _BASELANG.t2,bodyContent:data,
+        footerContent:''}).show();
+
+        },'html');
+
+    });
+
+    //方便调试
+    // Event.fire('#J_addSegment','click')
+
+    //删除segment
+    Event.on('#J_segmentNav .del','click',function(ev){
+        segDD=DOM.parent(this,'dd');
+        segId=DOM.attr(segDD,'data-id');
+        pageBaseDialog.set({width:260,headerContent:_BASELANG.t3,bodyContent:'<p class="txt-warn">'+_BASELANG.t4+'</p>',
+        footerContent:'<a href="javascript:;" class="link-small-blue" id="J_submitDeleSeg" style="margin-left:160px"><span>'+_BASELANG.t5+'</span></a>'}).show();
+    });
+    //取消segment
+    Event.on('#cancelSegment','click',function(){
+        window.location.href=DOM.val(this);
+    });
+    //弹出事件监听
+    pageBaseDialog.on('show',function(e){
+        var dgsNav=DOM.query('#J_dgsNav a');
+        //删除规则
+        Event.delegate('#J_dgsBox','click','.dgsr-del',function(e){
+            var type=DOM.attr('#J_dgsNav .active a','data-type');
+            var parent=DOM.parent(e.target,'.dgsr-item');
+            var rid=DOM.attr(parent,'data-rid');
+
+            IO.post('/Segment/delr',{type:type,rid:rid},function(data){
+                //要返回一个当前保存的segment的id
+                if(data.status==200){
+                    //删除当前规则
+                    DOM.remove(parent);
+                    //判断删除后是否为空
+                    if(DOM.query('.dgsr-item').length==0){
+                        DOM.html('.dgs-rule','<em class="gray">'+_BASELANG.t6+'</em>');
+                    }
+                }else{
+                    DOM.text('.dg-tips',_BASELANG.t7);
+                    DOM.addClass('.field-error');
+                    DOM.show('.dg-tips');
+                    setTimeout(function(){
+                        DOM.hide('.dg-tips');
+                        DOM.removeClass('.field-error');
+                    },3000);
+                }
+            },'json');
+
+        });
+        //定制导航
+        Event.on('#J_dgsNav a','click',function(){
+            var type=DOM.attr(this,'data-type') || '';
+            //判断当前选项卡是否可点击
+
+            //测试用 正式版请移除
+            //segId=1;
+
+            if(segId=='' && type!=''){
+                DOM.text('.dg-tips',_BASELANG.t8);
+                DOM.addClass('.dg-tips','field-error');
+                DOM.show('.dg-tips');
+                setTimeout(function(){
+                    DOM.hide('.dg-tips');
+                    DOM.removeClass('.dg-tips','field-error');
+                },3000);
+                return false
+            }
+
+            //若正在编辑，需要判断是否保存数据
+            if(DOM.data('#J_dgsNav','isEdit')==1){
+                if(confirm(_BASELANG.t9)){
+                    DOM.data('#J_dgsNav','isEdit',0);
+                }else{
+                    return false;
+                }
+            }
+
+            DOM.html('#J_dgsBox','<div class="loading">'+_BASELANG.t10+'</div>');
+            DOM.addClass(DOM.parent(this,'li'),'active');
+            DOM.removeClass(DOM.siblings(DOM.parent(this,'li'),'li'),'active');
+            IO.get('/Segment/set'+type+'/sid/'+segId,function(data){
+            // IO.get('/public/ajax/segment-setuser.html',function(data){
+                DOM.html('#J_dgsBox',data);
+                //概况
+                if(type==''){
+                    //名称判断
+                    Event.on('#J_submitSet','click',function(){
+                        var name=S.trim(DOM.val('#dgs_name'));
+                        var sid=DOM.attr('.dg-segment','data-sid');
+                        if(name.length>0 && name.length<11){
+                            DOM.removeClass('#dgs_name','field-error');
+                            IO.post('/Segment/setsaves',{name:name,sid:sid},function(data){
+                                //要返回一个当前保存的segment的id
+                                if(data.status==200){
+                                    DOM.data('#J_dgsNav','isEdit',0);
+                                    DOM.text('.dg-tips',_BASELANG.t11);
+                                    DOM.show('.dg-tips');
+                                    segId=data.id;
+                                    DOM.attr('.dg-segment','data-sid',segId);
+                                    setTimeout(function(){
+                                        DOM.hide('.dg-tips');
+                                    },3000);
+                                }else{
+                                    DOM.text('.dg-tips',_BASELANG.t12);
+                                    DOM.addClass('.field-error');
+                                    DOM.show('.dg-tips');
+                                    setTimeout(function(){
+                                        DOM.hide('.dg-tips');
+                                        DOM.removeClass('.field-error');
+                                    },3000);
+                                }
+                            },'json');
+                        }else{
+                            DOM.addClass('#dgs_name','field-error');
+                        }
+                    });
+                    //设置
+                    var dgsItem=DOM.query('.dgs-item .edit');
+                    
+                    Event.on('.dgs-item .edit','click',function(){
+                        Event.fire(dgsNav[S.indexOf(this,dgsItem)+1],'click');
+                    });
+                }
+                //用户定制时加载自动补全
+                if(type=='user'){
+                    S.use('combobox',function(S,ComboBox){
+                        //返回所有pagename
+                        IO.get('/Segment/getpagename',{},function(data){
+                            /*
+                            返回：
+                            status: 200
+                            pagenames: pagename数组
+                            */
+                            if(data.status==200){
+                                var basicComboBox = new ComboBox({
+                                    prefixCls:'bi-',
+                                    width:182,
+                                    srcNode:S.one("#rule3_combo"),
+                                    focused:true,
+                                    dataSource:new ComboBox.LocalDataSource({
+                                        data:data
+                                    }),
+                                    maxItemCount:10
+                                });
+                                basicComboBox.set({dataSource:new ComboBox.LocalDataSource({
+                                        data:data.pagenames
+                                    })})
+                                basicComboBox.render();
+                                basicComboBox.get('input').on('focus', function () {
+                                    basicComboBox.sendRequest('');
+                                });
+                            }
+                        },'json');
+                    });
+                }
+                //名称编辑时激活当前编辑
+                Event.on('#dgs_name','keyup',function(){
+                    DOM.data('#J_dgsNav','isEdit',1);
+                });
+                //其他选项当“符合条件”选项改变过，则视为编辑，
+                Event.on('#rule_1','change',function(){
+                    DOM.data('#J_dgsNav','isEdit',1);
+                });
+
+                //保存规则
+                Event.on('.dgss-submit .ui-link-blue','click',function(){
+                    var rule1=DOM.val('#rule_1');
+                    //仅显示来自移动端流量参数 true为是，false为否
+                    var rule5=DOM.prop('#rule_5','checked') || false;
+                    IO.post('/Segment/rulesave',{sid:segId,type:type,rule1:rule1,rule5:rule5},function(data){
+                        if(data.status==200){
+                            DOM.text('.dg-tips',_BASELANG.t11);
+                            DOM.data('#J_dgsNav','isEdit','0')
+                            DOM.show('.dg-tips');
+                            setTimeout(function(){
+                                DOM.hide('.dg-tips');
+                            },3000);
+                        }else{
+                            DOM.text('.dg-tips',_BASELANG.t12);
+                            DOM.show('.dg-tips');
+                            setTimeout(function(){
+                                DOM.hide('.dg-tips');
+                            },3000);
+                        }
+                    },'json');
+                });
+                //新增 - 即时保存
+                Event.on('.dgs-row-add','click',function(){
+                    var self=this;
+                    DOM.prop(self,'disabled',true);
+                    DOM.val(self,_BASELANG.t13);
+                    var rule3=S.trim(DOM.val('#rule_3'));
+                    var rule2=DOM.val('#rule_2');
+                    var rule4=DOM.val('#rule_4') || '';
+                    _log('RULE2: '+rule2+' | RULE3: '+rule3+' | RULE4: '+rule4)
+                    if(rule3.length>0 && rule3.length<31){
+                        DOM.removeClass('#rule_3','field-error');
+                        IO.post('/Segment/typesave',{sid:segId,type:type,txt1:rule4,txt2:rule2,txt3:rule3},function(data){
+                            /*
+                            回传：
+                            sid、类型、rule2、rule3、rule4的值，rule4若为空，则返回“来源名称”
+
+
+                            返回：
+                            rid: 规则id
+                            txt1：第一字段值 --对应rule4，流量来源页无rule4（这个是select，我回传的是value，返回的应该是对应的option中的txt），直接返回"来源名称"
+                            txt2：第二字段值 --对应rule2的值，一般为select的val值，对应还原option中的txt
+                            txt3：第三字段值 --对应rule3的值，设备及定制类型为下拉列表，其他均为text；
+                            */
+                            if(data.status==200){
+                                DOM.prop(self,'disabled',false);
+                                DOM.val(self,_BASELANG.t14);
+                                if(DOM.attr('#rule_3','type')=='text'){
+                                    DOM.val('#rule_3','');
+                                }
+                                var html='<div class="dgsr-item" data-rid="'+data.rid+'"><span class="dgsr-thead">'+data.txt1+'</span><span class="dgsr-query">'+data.txt2+'</span><span class="dgsr-txt">'+data.txt3+'</span><!--<a href="javascript:;" class="dgsr-edit">'+_BASELANG.t15+'</a>--><a href="javascript:;" class="dgsr-del">'+_BASELANG.t16+'</a></div>';
+                                if(DOM.query('.dgsr-item').length==0){
+                                    DOM.html('.dgs-rule',html);
+                                }else{
+                                    _log(html)
+                                    DOM.append(DOM.create(html),'.dgs-rule');
+                                }
+                            }else{
+                                DOM.text('.dg-tips',_BASELANG.t15);
+                                DOM.addClass('.dg-tips','field-error');
+                                DOM.show('.dg-tips');
+                                setTimeout(function(){
+                                    DOM.hide('.dg-tips');
+                                    DOM.removeClass('.dg-tips','field-error');
+                                },3000);
+                            }
+                        },'json');
+                    }else{
+                        DOM.addClass('#rule_3','field-error');
+                    }
+                });
+
+                //设备
+                if(type=='sys'){
+                    Event.on('#rule_4','change',function(){
+                        var val=DOM.val(this);
+                        IO.post('/Segment/goption',{type:type,val:val},function(data){
+                            /*
+                            根据前面选择的返回对应的类型
+                            item:['IE8.0','Chrome',...]
+                            */
+                            if(data.status==200){
+                                var arr=[];
+                                S.each(data.item,function(v,k){
+                                    arr.push('<option value="'+k+'">'+v+'</option>');
+                                });
+                                DOM.html('#rule_3',arr.join(''));
+                            }
+                        },'json');
+                    });
+                }
+            },'html');
+        });
+        //自动载入第一个
+        setTimeout(function(){
+            Event.fire('#J_dgsNav .active a','click')
+        },10);
+
+        //删除segment
+        Event.on('#J_submitDeleSeg','click',function(){
+            //删除
+            IO.post('/Segment/delp',{pid:segId},function(data){
+                if(data.status==200){
+                    DOM.remove(segDD);
+                    pageBaseDialog.close();
+                }
+            },'json');
+        });
+    });
+
+    
+},{requires:['dom','event','ajax','overlay','component/plugin/drag','gallery/auth/1.4/index']});
